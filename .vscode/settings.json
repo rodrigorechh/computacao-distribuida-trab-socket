@@ -1,0 +1,11 @@
+{
+    "java.dependency.packagePresentation": "hierarchical",
+    "java.project.referencedLibraries": [
+        "lib/**/*.jar",
+        "multicast/lib/json-20180130.jar"
+    ],
+    "java.project.sourcePaths": [
+        "sender/src",
+        "multicast/src"
+    ]
+}
