@@ -1,3 +1,8 @@
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.DatagramPacket;
@@ -5,6 +10,10 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.util.HashMap;
+import java.util.Map;
+
+import com.google.common.base.Joiner;
 
 import org.json.JSONObject;
 
@@ -14,10 +23,10 @@ public class Sender {
     public final static String MENSAGEM = "Hello!";
     public final static int PORTA = 5000;
     public final static byte[] BUFFER = new byte[100];
+    public final static String ENDERECO_PASTA_ORIGEM_BACKUP = "./origemBackup/";
 
     public static void main(String[] args) throws Exception {
-        // String conexao = obterConexaoServer();
-        String connection = "127.0.0.1:5003";
+        String connection = obterConexaoServer();     
         String[] spliteConnection = connection.split(":");
 
         String ip = spliteConnection[0];
@@ -34,7 +43,8 @@ public class Sender {
 
         ObjectInputStream input = new ObjectInputStream(socket.getInputStream());
         
-        output.writeObject("Enviando arquivo");
+        var mensagemEnviar = hashmapToString(encontrarArquivos());
+        output.writeObject(mensagemEnviar);
         output.flush();
         
         String msg = (String) input.readObject();
@@ -65,5 +75,36 @@ public class Sender {
     public static DatagramPacket criarPacoteMulticast() throws UnknownHostException {
         InetAddress grupo = InetAddress.getByName(IP_GRUPO);
         return new DatagramPacket(MENSAGEM.getBytes(), MENSAGEM.getBytes().length, grupo, PORTA);
+    }
+
+    /*Lê cada um dos arquivos salvo no path ENDERECO_PASTA_ORIGEM_BACKUP. Retorna hash com chave = nomeArquivo e valor = conteudoArquivo*/
+    public static Map<String,String> encontrarArquivos() throws FileNotFoundException, IOException {
+        Map<String,String> arquivos = new HashMap<String,String>();
+
+        final File file = new File(ENDERECO_PASTA_ORIGEM_BACKUP);
+        final File[] files = file.listFiles();
+        for (final File f : files) {
+            if(f.exists()) {//valida se não é um diretório
+                /**Obtém conteúdo do arquivo lendo linha por linha */
+                StringBuilder contentBuilder = new StringBuilder();
+                try (BufferedReader br = new BufferedReader(new FileReader(f.getPath()))) {
+                    String sCurrentLine;
+				    while ((sCurrentLine = br.readLine()) != null) {
+					    contentBuilder.append(sCurrentLine).append("\n");
+                    }
+                }
+
+                /**Salva no hash o conteúdo obtido*/
+                String nomeArquivo = f.getName();
+                String conteudoArquivo = contentBuilder.toString();
+                arquivos.put(nomeArquivo, conteudoArquivo);
+            }
+        }
+
+        return arquivos;
+    }
+
+    public static String hashmapToString(Map<String, String> map) {
+        return Joiner.on(",").withKeyValueSeparator("=").join(map);
     }
 }
