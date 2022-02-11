@@ -16,39 +16,80 @@ public class Server {
     private final int PORTA = 5003;
     private final String ENDERECO_PASTA_DESTINO_BACKUP = "./destinoBackup/";
 
+    private ServerSocket serverSocket = null;
+    private boolean socketAtivo = true;
+
     public void start() throws Exception {
         try {
-            ServerSocket serverSocket = new ServerSocket(PORTA, 10);
+            this.serverSocket = new ServerSocket(PORTA, 10);
 
-            Socket socket = serverSocket.accept();
+            Socket socket = this.serverSocket.accept();
 
             ObjectOutputStream output = new ObjectOutputStream(socket.getOutputStream());
             output.flush();
 
             ObjectInputStream input = new ObjectInputStream(socket.getInputStream());
 
-            String jsonArquivos = (String) input.readObject();
-            System.out.println("Recebido: " + jsonArquivos);
+            while (this.socketAtivo) {
+                String jsonArquivos = (String) input.readObject();
+                System.out.println("Recebido: " + jsonArquivos);
 
-            this.provessarStringRecebida(jsonArquivos);
+                this.processaStringRecebida(jsonArquivos);
 
-            output.writeObject("ACK");
-            output.flush();
+                output.writeObject("ACK");
+                output.flush();
+            }
 
-            serverSocket.close();
         } catch (Exception e) {
             e.printStackTrace();
         }
-
     }
 
-    private void provessarStringRecebida(String json) throws Exception {
+    private void processaStringRecebida(String json) throws Exception {
+        JSONObject conteudo = new JSONObject(json);
+
+        String type = conteudo.getString("type");
+
+        if (type.equals("CLOSE"))
+            this.processaFechamentoConexao();
+        else if (type.equals("INIT")) {
+            JSONArray payload = conteudo.getJSONArray("payload");
+            this.processaCargaInicial(payload);
+        } else if (type.equals("CREATE")) {
+            JSONObject payload = conteudo.getJSONObject("payload");
+            this.processaCriacaoArquivo(payload);
+        } else if (type.equals("MODIFY")) {
+            JSONObject payload = conteudo.getJSONObject("payload");
+            this.processaModificacaoArquivo(payload);
+        } else if (type.equals("DELETE")) {
+            JSONObject payload = conteudo.getJSONObject("payload");
+            this.processaExclusaoArquivo(payload);
+        }
+    }
+
+    private void processaCriacaoArquivo(JSONObject json) throws Exception {
+        System.out.println("Criado: " + json.getString("nome"));
+    }
+
+    private void processaModificacaoArquivo(JSONObject json) throws Exception {
+        System.out.println("Modificado: " + json.getString("nome"));
+    }
+
+    private void processaExclusaoArquivo(JSONObject json) throws Exception {
+        System.out.println("Deletado: " + json.getString("nome"));
+    }
+
+    private void processaCargaInicial(JSONArray json) throws Exception {
         Map<String, String> mapeamentoArquivos = this.obterMapeamentoArquivos(json);
         this.salvarArquivos(mapeamentoArquivos);
     }
 
-    private Map<String, String> obterMapeamentoArquivos(String json) {
-        JSONArray jsonArquivos = new JSONArray(json);
+    private void processaFechamentoConexao() throws Exception {
+        this.socketAtivo = false;
+        this.serverSocket.close();
+    }
+
+    private Map<String, String> obterMapeamentoArquivos(JSONArray jsonArquivos) {
         Map<String, String> arquivos = new HashMap<String, String>();
 
         for (int i = 0; i < jsonArquivos.length(); i++) {

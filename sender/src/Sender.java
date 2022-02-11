@@ -62,15 +62,59 @@ public class Sender {
     }
 
     private void callbackArquivoCriado(Path path) {
-        System.out.println("callbackArquivoCriado " + path);
+        try {
+            enviarAlteracaoArquivo("CREATE", path);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     private void callbackArquivoModificado(Path path) {
-        System.out.println("callbackArquivoModificado " + path);
+        try {
+            enviarAlteracaoArquivo("MODIFY", path);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     private void callbackArquivoDeletado(Path path) {
-        System.out.println("callbackArquivoDeletado " + path);
+        try {
+            enviarAlteracaoArquivo("DELETE", path);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void enviarAlteracaoArquivo(String type, Path path) throws Exception {
+        String conteudo = this.gerarStringAlteracaoArquivo(type, path);
+        this.output.writeObject(conteudo);
+        this.output.flush();
+
+        String msg = (String) input.readObject();
+        System.out.println("Recebido: " + msg);
+    }
+
+    private String obterNomeArquivo(Path path) {
+        return "nome arquivo";
+    }
+
+    private String obterConteudoArquivo(Path path) {
+        return "conteudo";
+    }
+
+    private String gerarStringAlteracaoArquivo(String type, Path path) throws Exception {
+        JSONObject jsonArquivo = new JSONObject();
+        jsonArquivo.put("nome", obterNomeArquivo(path));
+
+        if (!type.equals("DELETE"))
+            jsonArquivo.put("conteudo", obterConteudoArquivo(path));
+
+        JSONObject jsonModificao = new JSONObject();
+
+        jsonModificao.put("type", type);
+        jsonModificao.put("payload", jsonArquivo);
+
+        return jsonModificao.toString();
     }
 
     private void iniciarConexacoSocket() throws Exception {
@@ -83,7 +127,7 @@ public class Sender {
     }
 
     private void enviarEstadoInicialDeArquivos() throws Exception {
-        String conteudo = this.gerarStringEnvioSocket();
+        String conteudo = this.gerarStringEnvioInicial();
         this.output.writeObject(conteudo);
         this.output.flush();
 
@@ -91,10 +135,17 @@ public class Sender {
         System.out.println("Recebido: " + msg);
     }
 
-    private String gerarStringEnvioSocket() throws Exception {
+    private String gerarStringEnvioInicial() throws Exception {
         Map<String, String> arquivos = this.obterMapeamentoArquivos();
 
-        return this.converterMapeamentoEmJSON(arquivos);
+        JSONArray jsonArquivos = this.converterMapeamentoEmJSON(arquivos);
+
+        JSONObject jsonInicial = new JSONObject();
+
+        jsonInicial.put("type", "INIT");
+        jsonInicial.put("payload", jsonArquivos);
+
+        return jsonInicial.toString();
     }
 
     private void obterEnderecoNoMulticast() throws Exception {
@@ -157,7 +208,7 @@ public class Sender {
         return arquivos;
     }
 
-    private String converterMapeamentoEmJSON(Map<String, String> arquivos) {
+    private JSONArray converterMapeamentoEmJSON(Map<String, String> arquivos) {
         JSONArray jsonArquivos = new JSONArray();
 
         for (var arquivo : arquivos.entrySet()) {
@@ -169,6 +220,6 @@ public class Sender {
             jsonArquivos.put(jsonArquivo);
         }
 
-        return jsonArquivos.toString();
+        return jsonArquivos;
     }
 }
