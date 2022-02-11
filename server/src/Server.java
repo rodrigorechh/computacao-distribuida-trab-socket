@@ -1,20 +1,22 @@
+import java.io.File;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.HashMap;
 import java.util.Map;
 
-import com.google.common.base.Splitter;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 public class Server {
 
-    public final static int PORTA = 5003;
-    public final static byte[] BUFFER = new byte[100];
-    public final static String ENDERECO_PASTA_DESTINO_BACKUP = "./destinoBackup/";
-    public static void main(String[] args) throws Exception {
+    private final int PORTA = 5003;
+    private final String ENDERECO_PASTA_DESTINO_BACKUP = "./destinoBackup/";
+
+    public void start() throws Exception {
         try {
             ServerSocket serverSocket = new ServerSocket(PORTA, 10);
 
@@ -25,10 +27,10 @@ public class Server {
 
             ObjectInputStream input = new ObjectInputStream(socket.getInputStream());
 
-            String msg = (String) input.readObject();
-            System.out.println("Recebido: " + msg);
+            String jsonArquivos = (String) input.readObject();
+            System.out.println("Recebido: " + jsonArquivos);
 
-            salvarArquivos(stringToHashmap(msg));
+            this.provessarStringRecebida(jsonArquivos);
 
             output.writeObject("ACK");
             output.flush();
@@ -37,14 +39,42 @@ public class Server {
         } catch (Exception e) {
             e.printStackTrace();
         }
+
     }
 
-    public static Map<String, String> stringToHashmap(String mapAsString) {
-        return Splitter.on(',').withKeyValueSeparator('=').split(mapAsString);
+    private void provessarStringRecebida(String json) throws Exception {
+        Map<String, String> mapeamentoArquivos = this.obterMapeamentoArquivos(json);
+        this.salvarArquivos(mapeamentoArquivos);
     }
 
-    public static void salvarArquivos(Map<String, String> arquivos) throws IOException {
-        for(Map.Entry<String, String> arquivo : arquivos.entrySet()) {
+    private Map<String, String> obterMapeamentoArquivos(String json) {
+        JSONArray jsonArquivos = new JSONArray(json);
+        Map<String, String> arquivos = new HashMap<String, String>();
+
+        for (int i = 0; i < jsonArquivos.length(); i++) {
+            JSONObject jsonArquivo = jsonArquivos.getJSONObject(i);
+
+            String nomeArquivo = (String) jsonArquivo.get("nome");
+            String conteudoArquivo = (String) jsonArquivo.get("conteudo");
+            arquivos.put(nomeArquivo, conteudoArquivo);
+        }
+
+        return arquivos;
+    }
+
+    private void criaPastarDestino() {
+        File directory = new File(ENDERECO_PASTA_DESTINO_BACKUP);
+
+        if (directory.exists())
+            return;
+
+        directory.mkdir();
+    }
+
+    private void salvarArquivos(Map<String, String> arquivos) throws Exception {
+        this.criaPastarDestino();
+
+        for (Map.Entry<String, String> arquivo : arquivos.entrySet()) {
             String nomeArquivo = arquivo.getKey();
             String conteudoArquivo = arquivo.getValue();
 
@@ -55,6 +85,7 @@ public class Server {
             pr.close();
             fos.close();
         }
+
         System.out.println("Arquivos salvos!");
     }
 }

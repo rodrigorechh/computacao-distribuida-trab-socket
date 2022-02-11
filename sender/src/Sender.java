@@ -1,8 +1,6 @@
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileReader;
-import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.DatagramPacket;
@@ -10,51 +8,100 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
-import com.google.common.base.Joiner;
-
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 public class Sender {
 
-    public final static String IP_GRUPO = "230.1.2.3";
-    public final static String MENSAGEM = "Hello!";
-    public final static int PORTA = 5000;
-    public final static byte[] BUFFER = new byte[100];
-    public final static String ENDERECO_PASTA_ORIGEM_BACKUP = "./origemBackup/";
+    private final boolean HABILITAR_MULTICAST = false;
 
-    public static void main(String[] args) throws Exception {
-        String connection = obterConexaoServer();     
-        String[] spliteConnection = connection.split(":");
+    private final String IP_GRUPO = "230.1.2.3";
+    private final String CONTEUDO_REQ_MULTICAST = "ServerAddr";
+    private final int PORTA = 5000;
+    private final byte[] BUFFER = new byte[100];
+    private final String ENDERECO_PASTA_ORIGEM_BACKUP = "./origemBackup/";
 
-        String ip = spliteConnection[0];
-        int porta = Integer.parseInt(spliteConnection[1]);
+    private String IP_SERVIDOR_BACKUP = "";
+    private int PORTA_SERVIDOR_BACKUP = 0;
 
-        conectarSocketStream(ip, porta);
+    private Socket socket = null;
+    private ObjectOutputStream output = null;
+    private ObjectInputStream input = null;
+
+    public void start() throws Exception {
+        this.obterEnderecoServidorDataBackup();
+        this.iniciarConexacoSocket();
+        this.enviarEstadoInicialDeArquivos();
+        this.monitorarPastaBackup();
     }
 
-    public static void conectarSocketStream(String ip, int porta) throws Exception {
-        Socket socket = new Socket(InetAddress.getByName(ip), porta);
+    private void obterEnderecoServidorDataBackup() throws Exception {
+        if (HABILITAR_MULTICAST) {
+            this.obterEnderecoNoMulticast();
+        } else {
+            this.IP_SERVIDOR_BACKUP = "127.0.0.1";
+            this.PORTA_SERVIDOR_BACKUP = 5003;
+        }
+    }
 
-        ObjectOutputStream output = new ObjectOutputStream(socket.getOutputStream());
-        output.flush();
+    private void monitorarPastaBackup() throws Exception {
+        File dir = new File(ENDERECO_PASTA_ORIGEM_BACKUP);
 
-        ObjectInputStream input = new ObjectInputStream(socket.getInputStream());
-        
-        var mensagemEnviar = hashmapToString(encontrarArquivos());
-        output.writeObject(mensagemEnviar);
-        output.flush();
-        
+        Monitorador watcher = new Monitorador(dir.toPath());
+
+        watcher.setCallbackAoCriar(path -> this.callbackArquivoCriado(path));
+        watcher.setCallbackAoModificar(path -> this.callbackArquivoModificado(path));
+        watcher.setCallbackAoDeletar(path -> this.callbackArquivoDeletado(path));
+
+        Thread threadWatcher = new Thread(watcher);
+        threadWatcher.start();
+    }
+
+    private void callbackArquivoCriado(Path path) {
+        System.out.println("callbackArquivoCriado " + path);
+    }
+
+    private void callbackArquivoModificado(Path path) {
+        System.out.println("callbackArquivoModificado " + path);
+    }
+
+    private void callbackArquivoDeletado(Path path) {
+        System.out.println("callbackArquivoDeletado " + path);
+    }
+
+    private void iniciarConexacoSocket() throws Exception {
+        this.socket = new Socket(InetAddress.getByName(this.IP_SERVIDOR_BACKUP), this.PORTA_SERVIDOR_BACKUP);
+
+        this.output = new ObjectOutputStream(this.socket.getOutputStream());
+        this.output.flush();
+
+        this.input = new ObjectInputStream(this.socket.getInputStream());
+    }
+
+    private void enviarEstadoInicialDeArquivos() throws Exception {
+        String conteudo = this.gerarStringEnvioSocket();
+        this.output.writeObject(conteudo);
+        this.output.flush();
+
         String msg = (String) input.readObject();
         System.out.println("Recebido: " + msg);
     }
 
-    public static String obterConexaoServer() throws Exception {
+    private String gerarStringEnvioSocket() throws Exception {
+        Map<String, String> arquivos = this.obterMapeamentoArquivos();
+
+        return this.converterMapeamentoEmJSON(arquivos);
+    }
+
+    private void obterEnderecoNoMulticast() throws Exception {
         /** Enviar a Multicast */
-        var socket = new DatagramSocket();
-        socket.send(criarPacoteMulticast());
+        DatagramSocket socket = new DatagramSocket();
+        DatagramPacket pacote = criarPacoteMulticast();
+        socket.send(pacote);
 
         /** Obter retorno Multicast */
         DatagramPacket reply = new DatagramPacket(BUFFER, BUFFER.length);
@@ -69,42 +116,59 @@ public class Sender {
         System.out.println(
                 "Dados recebidos do Multicast -> ip: " + ipServidorDatastream + " porta: " + portaServidorDatastream);
 
-        return ipServidorDatastream + ":" + portaServidorDatastream;
+        this.IP_SERVIDOR_BACKUP = ipServidorDatastream;
+        this.PORTA_SERVIDOR_BACKUP = portaServidorDatastream;
     }
 
-    public static DatagramPacket criarPacoteMulticast() throws UnknownHostException {
+    private DatagramPacket criarPacoteMulticast() throws UnknownHostException {
         InetAddress grupo = InetAddress.getByName(IP_GRUPO);
-        return new DatagramPacket(MENSAGEM.getBytes(), MENSAGEM.getBytes().length, grupo, PORTA);
+        return new DatagramPacket(CONTEUDO_REQ_MULTICAST.getBytes(), CONTEUDO_REQ_MULTICAST.getBytes().length, grupo,
+                PORTA);
     }
 
-    /*Lê cada um dos arquivos salvo no path ENDERECO_PASTA_ORIGEM_BACKUP. Retorna hash com chave = nomeArquivo e valor = conteudoArquivo*/
-    public static Map<String,String> encontrarArquivos() throws FileNotFoundException, IOException {
-        Map<String,String> arquivos = new HashMap<String,String>();
+    /*
+     * Lê cada um dos arquivos salvo no path ENDERECO_PASTA_ORIGEM_BACKUP. Retorna
+     * hash com chave = nomeArquivo e valor = conteudoArquivo
+     */
+    private Map<String, String> obterMapeamentoArquivos() throws Exception {
+        Map<String, String> arquivos = new HashMap<String, String>();
 
         final File file = new File(ENDERECO_PASTA_ORIGEM_BACKUP);
         final File[] files = file.listFiles();
         for (final File f : files) {
-            if(f.exists()) {//valida se não é um diretório
-                /**Obtém conteúdo do arquivo lendo linha por linha */
-                StringBuilder contentBuilder = new StringBuilder();
-                try (BufferedReader br = new BufferedReader(new FileReader(f.getPath()))) {
-                    String sCurrentLine;
-				    while ((sCurrentLine = br.readLine()) != null) {
-					    contentBuilder.append(sCurrentLine).append("\n");
-                    }
-                }
+            if (f.isDirectory())
+                continue;
 
-                /**Salva no hash o conteúdo obtido*/
-                String nomeArquivo = f.getName();
-                String conteudoArquivo = contentBuilder.toString();
-                arquivos.put(nomeArquivo, conteudoArquivo);
+            /** Obtém conteúdo do arquivo lendo linha por linha */
+            StringBuilder contentBuilder = new StringBuilder();
+            try (BufferedReader br = new BufferedReader(new FileReader(f.getPath()))) {
+                String sCurrentLine;
+                while ((sCurrentLine = br.readLine()) != null) {
+                    contentBuilder.append(sCurrentLine);
+                }
             }
+
+            /** Salva no hash o conteúdo obtido */
+            String nomeArquivo = f.getName();
+            String conteudoArquivo = contentBuilder.toString();
+            arquivos.put(nomeArquivo, conteudoArquivo);
         }
 
         return arquivos;
     }
 
-    public static String hashmapToString(Map<String, String> map) {
-        return Joiner.on(",").withKeyValueSeparator("=").join(map);
+    private String converterMapeamentoEmJSON(Map<String, String> arquivos) {
+        JSONArray jsonArquivos = new JSONArray();
+
+        for (var arquivo : arquivos.entrySet()) {
+            JSONObject jsonArquivo = new JSONObject();
+
+            jsonArquivo.put("nome", arquivo.getKey());
+            jsonArquivo.put("conteudo", arquivo.getValue());
+
+            jsonArquivos.put(jsonArquivo);
+        }
+
+        return jsonArquivos.toString();
     }
 }
