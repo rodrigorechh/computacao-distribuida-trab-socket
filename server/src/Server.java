@@ -58,6 +58,7 @@ public class Server {
         } else if (type.equals("CREATE")) {
             JSONObject payload = conteudo.getJSONObject("payload");
             this.processaCriacaoArquivo(payload);
+            System.out.println("Criado: " + payload.getString("nome"));
         } else if (type.equals("MODIFY")) {
             JSONObject payload = conteudo.getJSONObject("payload");
             this.processaModificacaoArquivo(payload);
@@ -68,18 +69,28 @@ public class Server {
     }
 
     private void processaCriacaoArquivo(JSONObject json) throws Exception {
-        System.out.println("Criado: " + json.getString("nome"));
+        String nomeArquivo = (String) json.get("nome");
+        String conteudoArquivo = (String) json.get("conteudo");
+        
+        Map<String, String> arquivos = new HashMap<String, String>();
+        arquivos.put(nomeArquivo, conteudoArquivo);
+        
+        salvarArquivos(arquivos);
     }
 
     private void processaModificacaoArquivo(JSONObject json) throws Exception {
+        processaCriacaoArquivo(json);//ao criar arquivo, também sobrescreve o anterior
         System.out.println("Modificado: " + json.getString("nome"));
     }
 
     private void processaExclusaoArquivo(JSONObject json) throws Exception {
         System.out.println("Deletado: " + json.getString("nome"));
+        String nomeArquivo = (String) json.get("nome");
+        deletarArquivo(ENDERECO_PASTA_DESTINO_BACKUP + nomeArquivo);
     }
 
     private void processaCargaInicial(JSONArray json) throws Exception {
+        limparPastaBackup();
         Map<String, String> mapeamentoArquivos = this.obterMapeamentoArquivos(json);
         this.salvarArquivos(mapeamentoArquivos);
     }
@@ -128,5 +139,18 @@ public class Server {
         }
 
         System.out.println("Arquivos salvos!");
+    }
+
+    private void limparPastaBackup() {
+        final File file = new File(ENDERECO_PASTA_DESTINO_BACKUP);
+        final File[] files = file.listFiles();
+        for (final File f : files) {
+            f.delete();
+        }
+    }
+
+    private void deletarArquivo(String path) {
+        final File file = new File(path);
+        file.delete();
     }
 }

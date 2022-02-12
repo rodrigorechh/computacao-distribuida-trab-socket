@@ -1,11 +1,6 @@
 public class Bootstrap {
-    public static void main(String[] args) {
-        try {
+    public static void main(String[] args) throws Exception {
             Server server = new Server();
-
             server.start();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
     }
 }

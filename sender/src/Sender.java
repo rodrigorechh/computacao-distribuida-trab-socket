@@ -25,8 +25,8 @@ public class Sender {
     private final byte[] BUFFER = new byte[100];
     private final String ENDERECO_PASTA_ORIGEM_BACKUP = "./origemBackup/";
 
-    private String IP_SERVIDOR_BACKUP = "";
-    private int PORTA_SERVIDOR_BACKUP = 0;
+    private String ipServidorBackup = "";
+    private int portaServidorBackup = 0;
 
     private Socket socket = null;
     private ObjectOutputStream output = null;
@@ -43,8 +43,8 @@ public class Sender {
         if (HABILITAR_MULTICAST) {
             this.obterEnderecoNoMulticast();
         } else {
-            this.IP_SERVIDOR_BACKUP = "127.0.0.1";
-            this.PORTA_SERVIDOR_BACKUP = 5003;
+            this.ipServidorBackup = "127.0.0.1";
+            this.portaServidorBackup = 5003;
         }
     }
 
@@ -95,11 +95,12 @@ public class Sender {
     }
 
     private String obterNomeArquivo(Path path) {
-        return "nome arquivo";
+        return path.toString();
     }
 
-    private String obterConteudoArquivo(Path path) {
-        return "conteudo";
+    private String obterConteudoArquivo(Path path) throws Exception {
+        var arquivos = obterMapeamentoArquivos();
+        return arquivos.get(path.toString());
     }
 
     private String gerarStringAlteracaoArquivo(String type, Path path) throws Exception {
@@ -118,7 +119,7 @@ public class Sender {
     }
 
     private void iniciarConexacoSocket() throws Exception {
-        this.socket = new Socket(InetAddress.getByName(this.IP_SERVIDOR_BACKUP), this.PORTA_SERVIDOR_BACKUP);
+        this.socket = new Socket(InetAddress.getByName(this.ipServidorBackup), this.portaServidorBackup);
 
         this.output = new ObjectOutputStream(this.socket.getOutputStream());
         this.output.flush();
@@ -167,8 +168,8 @@ public class Sender {
         System.out.println(
                 "Dados recebidos do Multicast -> ip: " + ipServidorDatastream + " porta: " + portaServidorDatastream);
 
-        this.IP_SERVIDOR_BACKUP = ipServidorDatastream;
-        this.PORTA_SERVIDOR_BACKUP = portaServidorDatastream;
+        this.ipServidorBackup = ipServidorDatastream;
+        this.portaServidorBackup = portaServidorDatastream;
     }
 
     private DatagramPacket criarPacoteMulticast() throws UnknownHostException {
