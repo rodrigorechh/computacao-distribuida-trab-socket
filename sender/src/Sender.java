@@ -55,7 +55,6 @@ public class Sender {
 
         watcher.setCallbackAoCriar(path -> this.callbackArquivoCriado(path));
         watcher.setCallbackAoModificar(path -> this.callbackArquivoModificado(path));
-        watcher.setCallbackAoDeletar(path -> this.callbackArquivoDeletado(path));
 
         Thread threadWatcher = new Thread(watcher);
         threadWatcher.start();
@@ -72,14 +71,6 @@ public class Sender {
     private void callbackArquivoModificado(Path path) {
         try {
             enviarAlteracaoArquivo("MODIFY", path);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void callbackArquivoDeletado(Path path) {
-        try {
-            enviarAlteracaoArquivo("DELETE", path);
         } catch (Exception e) {
             e.printStackTrace();
         }

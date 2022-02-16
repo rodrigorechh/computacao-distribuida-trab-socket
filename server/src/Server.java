@@ -62,9 +62,6 @@ public class Server {
         } else if (type.equals("MODIFY")) {
             JSONObject payload = conteudo.getJSONObject("payload");
             this.processaModificacaoArquivo(payload);
-        } else if (type.equals("DELETE")) {
-            JSONObject payload = conteudo.getJSONObject("payload");
-            this.processaExclusaoArquivo(payload);
         }
     }
 
@@ -81,12 +78,6 @@ public class Server {
     private void processaModificacaoArquivo(JSONObject json) throws Exception {
         processaCriacaoArquivo(json);//ao criar arquivo, também sobrescreve o anterior
         System.out.println("Modificado: " + json.getString("nome"));
-    }
-
-    private void processaExclusaoArquivo(JSONObject json) throws Exception {
-        System.out.println("Deletado: " + json.getString("nome"));
-        String nomeArquivo = (String) json.get("nome");
-        deletarArquivo(ENDERECO_PASTA_DESTINO_BACKUP + nomeArquivo);
     }
 
     private void processaCargaInicial(JSONArray json) throws Exception {
@@ -147,10 +138,5 @@ public class Server {
         for (final File f : files) {
             f.delete();
         }
-    }
-
-    private void deletarArquivo(String path) {
-        final File file = new File(path);
-        file.delete();
     }
 }

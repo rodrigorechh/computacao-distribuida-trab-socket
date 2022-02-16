@@ -30,7 +30,6 @@ public class Monitorador implements Runnable {
 
     private Callback callbackAoCriar = null;
     private Callback callbackAoModificar = null;
-    private Callback callbackAoDeletar = null;
 
     public Monitorador(Path path) {
         this.caminhoPasta = path;
@@ -42,10 +41,6 @@ public class Monitorador implements Runnable {
 
     public void setCallbackAoModificar(Callback callback) {
         this.callbackAoModificar = callback;
-    }
-
-    public void setCallbackAoDeletar(Callback callback) {
-        this.callbackAoDeletar = callback;
     }
 
     @Override
@@ -95,8 +90,6 @@ public class Monitorador implements Runnable {
                         this.resolveArquivoCriado(caminhoEvento);
                     else if (ENTRY_MODIFY == kind)
                         this.resolveArquivoModificado(caminhoEvento);
-                    else if (ENTRY_DELETE == kind)
-                        this.resolveArquivoDeletado(caminhoEvento);
                 }
 
                 if (!key.reset())
@@ -116,9 +109,5 @@ public class Monitorador implements Runnable {
 
     private void resolveArquivoModificado(Path path) {
         this.callbackAoModificar.callback(path);
-    }
-
-    private void resolveArquivoDeletado(Path path) {
-        this.callbackAoDeletar.callback(path);
     }
 }
