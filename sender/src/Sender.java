@@ -17,7 +17,7 @@ import org.json.JSONObject;
 
 public class Sender {
 
-    private final boolean HABILITAR_MULTICAST = false;
+    private final boolean HABILITAR_MULTICAST = true;
 
     private final String IP_GRUPO = "230.1.2.3";
     private final String CONTEUDO_REQ_MULTICAST = "ServerAddr";
